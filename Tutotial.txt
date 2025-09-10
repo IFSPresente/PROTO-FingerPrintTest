@@ -1,0 +1,123 @@
+Como compilar sourceAFIS em um shared object
+--------------------------------------------
+
+1) Editar o arquivo POM.XML do código fonte.
+   Colocar uma classe com.machinezoo.sourceafis.FingerprintMain que conterá os entry points 
+   do shared object, arquivo .so:
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.2.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <mainClass>com.machinezoo.sourceafis.FingerprintMain</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+			
+2) Colocar no arquivo src/main/java/module-info.java
+   requires org.graalvm.nativeimage;  
+   
+3) Coloque a propriedade com a versão do GraalVM em <properties> no POM.XML.
+   
+   <graalvm.version>24.1.0</graalvm.version>
+   
+    <properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<graalvm.version>24.1.0</graalvm.version>
+		<maven.compiler.release>11</maven.compiler.release>
+	</properties>
+	
+4)  O Repositório fica em https://repo.maven.apache.org/maven2/org/graalvm/sdk/nativeimage/
+    https://github.com/oracle/graal/tree/master/sdk
+     Coloque a dependência com o pacote do Graal no POM.XML:
+		<dependency>
+			<groupId>org.graalvm.sdk</groupId>
+			<artifactId>nativeimage</artifactId>
+		<version>${graalvm.version}</version>
+		</dependency>
+	    
+		Há outros dois pacotes que talvez não sejam necessários:
+		<dependency>
+			<groupId>org.graalvm.sdk</groupId>
+			<artifactId>word</artifactId>
+			<version>${graalvm.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.graalvm.sdk</groupId>
+			<artifactId>collections</artifactId>
+			<version>${graalvm.version}</version>
+		</dependency>
+
+3) O código fonte da classe que foi colocado em:
+   src\main\java\com\machinezoo\sourceafis:
+public class FingerprintMain {
+	
+	public FingerprintMain() {
+	}
+	
+	public static void main(String[] args) {
+	}
+}
+
+4) Não iremos assinar digitalmente o JAR, desabilite GPG no POM.XML com <skip>:
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-gpg-plugin</artifactId>
+				<version>3.1.0</version>
+				<configuration>
+				    <skip>true</skip>
+					<gpgArguments>
+						<arg>--pinentry-mode</arg>
+						<arg>loopback</arg>
+					</gpgArguments>
+				</configuration>
+				<executions>
+					<execution>
+						<id>sign-artifacts</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>sign</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
+5) Desabilite a geração de javadoc no POM.XML com <skip>:
+   <groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>3.6.2</version>
+				<configuration>
+					<skip>true</skip>
+
+6)	Defina num prompt que queremos usar JDK do GraalVM:
+	SET JAVA_HOME=set JAVA_HOME=C:\Users\lhsac\Downloads\graalvm-jdk-23_windows-x64_bin\graalvm-jdk-23+37.1
+	set PATH="c:\Users\lhsac\Downloads\graalvm-jdk-23_windows-x64_bin\graalvm-jdk-23+37.1\bin";%PATH%
+	
+7) Coloque no PATH o caminho para que o compilador de C/C++ do VisualStudio seja encontrado na linha de comando:
+   "c:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+   
+8) Com Maven instalado no computador, compile o projeto:
+   mvn package 
+   ou
+   mvn clean install -U (para limpar e refazer)
+   no diretório onde está o pom.xml, diretório master
+   
+9) Agora é possível converter um "jar" em uma shared object (aqui, DLL) com o GraalVM.
+   No diretório 'target'
+   native-image --shared -o libmeuprojeto -jar sourceafis-3.18.1.jar
+   native-image -H:Name=FingerprintMain -H:Class=FingerprintMain --shared -o libmeuprojeto -jar sourceafis-3.18.1.jar
+   native-image --no-fallback -H:ReflectionConfigurationFiles=reflect-config.json --initialize-at-build-time=com.machinezoo.sourceafis.FingerprintTemplate -H:Name=FingerprintMain -H:Class=FingerprintMain --shared -o libmeuprojeto -jar sourceafis-3.18.1.jar 
+ 
+ 
+native-image -H:+UnlockExperimentalVMOptions --parallelism=2 -cp "classes:dependency/*" --no-fallback  -H:+ReportExceptionStackTraces -H:ReflectionConfigurationFiles=./impressoes/reachability-metadata.json  --shared -o libmeuprojeto com.machinezoo.sourceafis.FingerprintMain 
+
+ 
+ java -cp "./classes:./dependency/*" com.machinezoo.sourceafis.FingerprintMain Indicador-LHS-01.pgm Indicador-LHS-01.pgm
+
+ java -cp "./classes:./dependency/*" -agentlib:native-image-agent=config-output-dir=./impressoes com.machinezoo.sourceafis.FingerprintMain Indicador-LHS-01.pgm Indicador-LHS-01.pgm
+    
+   
